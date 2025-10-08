@@ -7,7 +7,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
-      const response = await fetch("/activities");
+      // Add a timestamp to avoid cached responses
+      const response = await fetch(`/activities?ts=${Date.now()}`, { cache: "no-store" });
       const activities = await response.json();
 
       // Clear loading message and dropdown
@@ -44,7 +45,45 @@ document.addEventListener("DOMContentLoaded", () => {
           details.participants.forEach((p) => {
             const li = document.createElement("li");
             li.className = "participant-item";
-            li.textContent = p;
+
+            // Email text
+            const span = document.createElement("span");
+            span.className = "participant-email";
+            span.textContent = p;
+
+            // Delete button (small trash icon)
+            const delBtn = document.createElement("button");
+            delBtn.className = "participant-delete";
+            delBtn.title = `Remove ${p}`;
+            delBtn.innerHTML = "&times;"; // simple X icon
+
+            // Attach click handler to unregister participant
+            delBtn.addEventListener("click", async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
+              try {
+                const resp = await fetch(
+                  `/activities/${encodeURIComponent(name)}/participants?email=${encodeURIComponent(p)}`,
+                  {
+                    method: "DELETE",
+                  }
+                );
+
+                const resJson = await resp.json();
+                if (resp.ok) {
+                      // Refresh activities to update the list and wait for it to finish
+                      await fetchActivities();
+                } else {
+                  console.error("Failed to remove participant:", resJson);
+                }
+              } catch (err) {
+                console.error("Error removing participant:", err);
+              }
+            });
+
+            li.appendChild(span);
+            li.appendChild(delBtn);
             ul.appendChild(li);
           });
         } else {
@@ -93,8 +132,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.className = "success";
         signupForm.reset();
 
-        // Refresh activities to reflect the new participant
-        fetchActivities();
+        // Refresh activities to reflect the new participant and wait for it to finish
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
